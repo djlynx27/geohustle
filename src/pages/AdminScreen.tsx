@@ -18,6 +18,8 @@ import { CsvImporter } from '@/components/CsvImporter';
 import { WeeklyGoalSetting } from '@/components/WeeklyGoal';
 import { DailyReports } from '@/components/DailyReports';
 import { ExperimentalShiftComparison } from '@/components/ExperimentalShiftComparison';
+import { searchOpenFoodFacts, type OpenFoodProduct } from '@/integrations/openFoodFacts';
+import { searchFoursquarePlaces, type FoursquarePlace } from '@/integrations/foursquare';
 
 interface AIRecommendation {
   zone_id: string;
@@ -44,6 +46,12 @@ export default function AdminScreen() {
   const [aiResults, setAiResults] = useState<AIRecommendation[] | null>(null);
   const [lastAnalyzed, setLastAnalyzed] = useState<string | null>(null);
 
+  const [foodQuery, setFoodQuery] = useState('');
+  const [foodResults, setFoodResults] = useState<OpenFoodProduct[]>([]);
+  const [placeQuery, setPlaceQuery] = useState('');
+  const [placeResults, setPlaceResults] = useState<FoursquarePlace[]>([]);
+  const [placeLocation, setPlaceLocation] = useState<{ lat: number; lng: number } | null>(null);
+
   // Fetch last AI analysis date
   useEffect(() => {
     supabase
@@ -55,6 +63,12 @@ export default function AdminScreen() {
       .then(({ data }) => {
         if (data?.[0]) setLastAnalyzed(data[0].created_at);
       });
+
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition((pos) => {
+        setPlaceLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+      });
+    }
   }, []);
 
   async function handleAddCity() {
@@ -71,7 +85,7 @@ export default function AdminScreen() {
 
   async function handleSimulate() {
     if (zones.length === 0) {
-      toast.error('No zones for this city');
+      toast.error(t('noZonesCity'));
       return;
     }
     setSimProgress({ current: 0, total: 1, label: simCityId });
@@ -110,6 +124,31 @@ export default function AdminScreen() {
     }
   }
 
+  async function handleSearchFood() {
+    if (!foodQuery.trim()) return;
+    try {
+      const items = await searchOpenFoodFacts(foodQuery.trim());
+      setFoodResults(items);
+      toast.success(`${items.length} ${t('productsFound')}`);
+    } catch (e: any) {
+      toast.error(e.message || `${t('searchFailed')} (OpenFoodFacts)`);
+    }
+  }
+
+  async function handleSearchPlaces() {
+    if (!placeQuery.trim() || !placeLocation) {
+      toast.error(t('locationOrQueryMissing'));
+      return;
+    }
+    try {
+      const places = await searchFoursquarePlaces(placeQuery.trim(), placeLocation.lat, placeLocation.lng);
+      setPlaceResults(places);
+      toast.success(`${places.length} ${t('placesFound')}`);
+    } catch (e: any) {
+      toast.error(e.message || 'Foursquare search failed');
+    }
+  }
+
   async function handleAIAnalysis() {
     setAiLoading(true);
     setAiResults(null);
@@ -119,9 +158,9 @@ export default function AdminScreen() {
       if (data?.error) throw new Error(data.error);
       setAiResults(data.recommendations || []);
       setLastAnalyzed(new Date().toISOString());
-      toast.success(`Analyse IA terminée — ${data.recommendations?.length || 0} zones mises à jour`);
+      toast.success(`${t('aiAnalysisDone')} — ${data.recommendations?.length || 0} ${t('aiRecommendations')}`);
     } catch (e: any) {
-      toast.error(e.message || 'Erreur lors de l\'analyse IA');
+      toast.error(e.message || t('aiAnalysisError'));
     } finally {
       setAiLoading(false);
     }
@@ -146,7 +185,7 @@ export default function AdminScreen() {
         {/* Mode Taxi */}
         <div className="space-y-1">
           <h2 className="text-[18px] font-display font-bold flex items-center gap-2 px-1">
-            <Car className="w-5 h-5 text-primary" /> Mode Taxi
+            <Car className="w-5 h-5 text-primary" /> {t('adminModeTaxi')}
           </h2>
           <ModeTaxi />
         </div>
@@ -211,7 +250,7 @@ export default function AdminScreen() {
             {isSimulating && (
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between text-xs text-muted-foreground font-body">
-                  <span>Génération en cours… {simProgress.label}</span>
+                  <span>{t('generationInProgress')} {simProgress.label}</span>
                   <span>{progressPct}%</span>
                 </div>
                 <Progress value={progressPct} className="h-2" />
@@ -228,9 +267,9 @@ export default function AdminScreen() {
             </Button>
 
             <div className="text-xs text-muted-foreground font-body space-y-0.5 pt-1 border-t border-border">
-              <p className="font-medium text-foreground">Mode simulation IA</p>
-              <p>Base scores par type de zone + multiplicateurs horaires</p>
-              <p>96 créneaux × {zones.length || '?'} zones = {zones.length ? zones.length * 96 : '?'} scores</p>
+              <p className="font-medium text-foreground">{t('simulationMode')}</p>
+              <p>{t('simulationExplanation')}</p>
+              <p>{t('slotsCount')} {zones.length || '?'} zones = {zones.length ? zones.length * 96 : '?'} scores</p>
             </div>
           </CardContent>
         </Card>
@@ -247,14 +286,14 @@ export default function AdminScreen() {
             {lastAnalyzed && (
               <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-1">
                 <Clock className="w-3.5 h-3.5" />
-                Dernière analyse : {new Date(lastAnalyzed).toLocaleDateString('fr-CA', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                {t('aiLastAnalyzed')}: {new Date(lastAnalyzed).toLocaleDateString('fr-CA', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
               </div>
             )}
           </CardHeader>
           <CardContent className="space-y-3">
             <Button onClick={handleAIAnalysis} className="w-full gap-2" disabled={aiLoading}>
               {aiLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-              {aiLoading ? 'Analyse en cours…' : 'Lancer l\'analyse IA'}
+              {aiLoading ? t('aiRunning') : t('aiRunButton')}
             </Button>
 
             {aiResults && aiResults.length > 0 && (
@@ -286,6 +325,62 @@ export default function AdminScreen() {
             {aiResults && aiResults.length === 0 && (
               <p className="text-xs text-muted-foreground text-center py-2">Aucune recommandation générée. Ajoutez plus de données.</p>
             )}
+          </CardContent>
+        </Card>
+
+        {/* External Data Search Card */}
+        <Card className="bg-card border-border">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base font-display flex items-center gap-2">
+              <Zap className="w-4 h-4 text-demand-medium" /> {t('apiConnector')}
+            </CardTitle>
+            <CardDescription className="text-xs">
+              {t('openFoodFactsDescription')} / {t('foursquareDescription')}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <p className="text-sm font-medium">{t('openFoodFacts')} ({t('searchProducts')})</p>
+              <div className="flex gap-2">
+                <Input placeholder={t('searchProducts')} value={foodQuery} onChange={e => setFoodQuery(e.target.value)} className="bg-background border-border" />
+                <Button onClick={handleSearchFood} variant="secondary" className="gap-2">
+                  {t('searchProducts')}
+                </Button>
+              </div>
+              {foodResults.length > 0 && (
+                <div className="space-y-2 pt-2">
+                  {foodResults.slice(0, 5).map(item => (
+                    <div key={item.id || item.product_name} className="rounded-md border border-border bg-background p-2 text-xs">
+                      <p className="font-semibold">{item.product_name || t('noData')}</p>
+                      <p>{item.brands} • {item.quantity || '—'}</p>
+                      <p>{t('nutritionGrade')} : {item.nutrition_grade_fr || 'N/A'}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-sm font-medium">{t('fourSquare')} ({t('searchPlaces')})</p>
+              <div className="flex gap-2">
+                <Input placeholder={t('searchPlaces')} value={placeQuery} onChange={e => setPlaceQuery(e.target.value)} className="bg-background border-border" />
+                <Button onClick={handleSearchPlaces} variant="secondary" className="gap-2">
+                  {t('searchPlaces')}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">{placeLocation ? `${t('currentLocation')}: ${placeLocation.lat.toFixed(4)} , ${placeLocation.lng.toFixed(4)}` : t('locationUnavailable')}</p>
+              {placeResults.length > 0 && (
+                <div className="space-y-2 pt-2">
+                  {placeResults.slice(0, 5).map(place => (
+                    <div key={place.fsq_id} className="rounded-md border border-border bg-background p-2 text-xs">
+                      <p className="font-semibold">{place.name}</p>
+                      <p>{place.location.address || place.location.locality || t('noData')}</p>
+                      <p>{place.categories?.[0]?.name || t('noData')} • {place.distance ? `${place.distance} m` : '—'}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </CardContent>
         </Card>
       </div>
