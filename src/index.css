@@ -1,0 +1,115 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Roboto:wght@400;500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* #0a0a1a = 240 45% 7% */
+    --background: 240 45% 7%;
+    --foreground: 0 0% 100%;
+
+    /* #13132a = 240 38% 12% */
+    --card: 240 38% 12%;
+    --card-foreground: 0 0% 100%;
+
+    --popover: 240 38% 12%;
+    --popover-foreground: 0 0% 100%;
+
+    /* Green accent #00e676 = 151 100% 45% */
+    --primary: 151 100% 45%;
+    --primary-foreground: 240 45% 7%;
+
+    --secondary: 240 38% 16%;
+    --secondary-foreground: 0 0% 100%;
+
+    /* #a0a0c0 = 240 18% 69% */
+    --muted: 240 38% 16%;
+    --muted-foreground: 240 18% 69%;
+
+    --accent: 240 38% 20%;
+    --accent-foreground: 0 0% 100%;
+
+    /* Red accent #f44336 = 4 90% 58% */
+    --destructive: 4 90% 58%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 240 30% 18%;
+    --input: 240 30% 18%;
+    --ring: 151 100% 45%;
+
+    --radius: 0.75rem;
+
+    /* Demand colors: green/yellow/red */
+    --demand-high: 151 100% 45%;
+    --demand-medium: 54 100% 61%;
+    --demand-low: 4 90% 58%;
+
+    --surface: 240 38% 12%;
+    --nav: 240 45% 7%;
+
+    --sidebar-background: 240 45% 7%;
+    --sidebar-foreground: 0 0% 100%;
+    --sidebar-primary: 151 100% 45%;
+    --sidebar-primary-foreground: 240 45% 7%;
+    --sidebar-accent: 240 38% 20%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 240 30% 18%;
+    --sidebar-ring: 151 100% 45%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-body antialiased;
+    font-size: 16px;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-display;
+  }
+}
+
+@layer utilities {
+  .demand-high {
+    @apply bg-[hsl(var(--demand-high))];
+  }
+  .demand-medium {
+    @apply bg-[hsl(var(--demand-medium))];
+  }
+  .demand-low {
+    @apply bg-[hsl(var(--demand-low))];
+  }
+  .demand-high-text {
+    color: hsl(var(--demand-high));
+  }
+  .demand-medium-text {
+    color: hsl(var(--demand-medium));
+  }
+  .demand-low-text {
+    color: hsl(var(--demand-low));
+  }
+  .demand-high-border {
+    border-left-color: hsl(var(--demand-high));
+  }
+  .demand-medium-border {
+    border-left-color: hsl(var(--demand-medium));
+  }
+  .demand-low-border {
+    border-left-color: hsl(var(--demand-low));
+  }
+  .text-score-high {
+    color: hsl(var(--demand-high));
+  }
+  .text-score-medium {
+    color: hsl(var(--demand-medium));
+  }
+  .text-score-low {
+    color: hsl(var(--demand-low));
+  }
+}

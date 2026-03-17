@@ -1,0 +1,13 @@
+project_id = "wjcmuulaerfzfqvbrzjb"
+
+[functions.calculate-scores]
+verify_jwt = false
+
+[functions.ai-score-analysis]
+verify_jwt = false
+
+[functions.analyze-screenshot]
+verify_jwt = false
+
+[functions.generate-daily-report]
+verify_jwt = false
