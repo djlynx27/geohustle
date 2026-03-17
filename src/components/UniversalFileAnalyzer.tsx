@@ -26,6 +26,8 @@ export function UniversalFileAnalyzer() {
   const allZones = [...mtlZones, ...lavalZones, ...longueuilZones];
 
   const [zoneId, setZoneId] = useState('');
+  const [suggestedZoneId, setSuggestedZoneId] = useState('');
+  const [suggestedArea, setSuggestedArea] = useState<'demand' | 'shift' | 'daily' | 'mileage' | 'profit' | 'unknown'>('unknown');
   const [file, setFile] = useState<File | null>(null);
   const [urlInput, setUrlInput] = useState('');
   const [preview, setPreview] = useState<string | null>(null);
@@ -51,13 +53,28 @@ export function UniversalFileAnalyzer() {
   async function handleAnalyze() {
     if (mode === 'url' && !urlInput.trim()) { toast.error('Entrez un URL'); return; }
     if (mode !== 'url' && !file) { toast.error('Sélectionnez un fichier'); return; }
-    if (!zoneId) { toast.error('Sélectionnez une zone'); return; }
 
     setLoading(true);
     setResult(null);
+    setSuggestedZoneId('');
+    setSuggestedArea('unknown');
+
     try {
       let imageUrl = '';
       let fileContent = '';
+      const fileType = file?.type || '';
+
+      const smartRoute = (basedOn: AnalysisResult) => {
+        if (basedOn.recommended_target) {
+          setSuggestedArea(basedOn.recommended_target as any);
+        } else if (fileType.includes('csv') || file?.name.toLowerCase().includes('quickbooks') || file?.name.toLowerCase().includes('mileage')) {
+          setSuggestedArea('mileage');
+        } else if (file?.name.toLowerCase().includes('lyft') || file?.name.toLowerCase().includes('ride')) {
+          setSuggestedArea('shift');
+        } else {
+          setSuggestedArea('demand');
+        }
+      };
 
       if (mode === 'url') {
         imageUrl = urlInput.trim();
@@ -69,28 +86,55 @@ export function UniversalFileAnalyzer() {
           const { data: urlData } = supabase.storage.from('driver-screenshots').getPublicUrl(fileName);
           imageUrl = urlData.publicUrl;
         } else {
-          // Read text content for non-image files
           fileContent = await file.text();
-          if (fileContent.length > 50000) fileContent = fileContent.slice(0, 50000);
+          if (fileContent.length > 200000) fileContent = fileContent.slice(0, 200000);
+
+          if (file.name.toLowerCase().endsWith('.csv')) {
+            const lines = fileContent.split('\n').slice(0, 10);
+            const hasDistance = lines.some(l => /distance|mileage|km|mi/i.test(l));
+            const hasEarnings = lines.some(l => /earnings|fare|revenue/i.test(l));
+            if (hasDistance && hasEarnings) {
+              setSuggestedArea('mileage');
+            }
+          }
         }
       }
 
-      const zoneName = allZones.find(z => z.id === zoneId)?.name || 'Unknown';
+      const zoneName = allZones.find(z => z.id === zoneId || z.id === suggestedZoneId)?.name || 'Auto';
+      const rawZone = zoneId ? allZones.find(z => z.id === zoneId) : undefined;
 
       const { data, error } = await supabase.functions.invoke('analyze-screenshot', {
         body: {
           image_url: imageUrl || undefined,
           file_content: fileContent || undefined,
           file_name: file?.name || urlInput,
-          zone_id: zoneId,
-          zone_name: zoneName,
+          zone_id: rawZone?.id || suggestedZoneId || undefined,
+          zone_name: rawZone?.name || zoneName,
+          auto_zone: true,
+          mode,
         },
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
 
-      setResult(data.analysis);
-      toast.success('Analyse terminée — données sauvegardées');
+      const analysis: AnalysisResult = data.analysis || {};
+      setResult(analysis);
+
+      if (analysis.zones_detected?.length) {
+        const found = analysis.zones_detected[0];
+        const matched = allZones.find(z => z.name.toLowerCase().includes(found.area.toLowerCase()));
+        if (matched) {
+          setSuggestedZoneId(matched.id);
+          setZoneId(matched.id);
+        }
+      }
+      if (analysis.recommended_target) {
+        setSuggestedArea(analysis.recommended_target);
+      } else {
+        smartRoute(analysis);
+      }
+
+      toast.success('Analyse terminée — propositions créées');
     } catch (e: any) {
       toast.error(e.message || "Erreur lors de l'analyse");
     } finally {
@@ -192,6 +236,21 @@ export function UniversalFileAnalyzer() {
           <p className="text-[10px] text-muted-foreground text-center">
             Supporte: Lyft, Uber, Maxymo, Gridwise, QuickBooks, Everlance — l'IA extraira automatiquement les données pertinentes
           </p>
+        )}
+
+        {(result || suggestedArea !== 'unknown') && (
+          <div className="p-2 bg-background border border-border rounded-md space-y-1 text-xs">
+            <p className="font-semibold">Direction IA proposée :</p>
+            <p>Zone suggérée: {suggestedZoneId ? allZones.find(z => z.id === suggestedZoneId)?.name || suggestedZoneId : 'Non détectée'}</p>
+            <p>Usage recommandé: {suggestedArea === 'unknown' ? 'Auto' : suggestedArea}</p>
+            <p>
+              {suggestedArea === 'mileage' && '→ Intégrez ce document au suivi kilométrique fiscal.'}
+              {suggestedArea === 'shift' && '→ Utilisez pour analyse de shift, heures et performance.'}
+              {suggestedArea === 'daily' && '→ Utilisez dans rapport quotidien / revenus journaliers.'}
+              {suggestedArea === 'profit' && '→ Utilisez dans la rentabilité net / calc profit.'}
+              {suggestedArea === 'demand' && '→ Utilisez pour recalcul de demande / scores zone.'}
+            </p>
+          </div>
         )}
 
         {/* Results */}
