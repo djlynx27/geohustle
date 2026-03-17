@@ -1,0 +1,189 @@
+import { useState, useMemo } from 'react';
+import { useI18n } from '@/contexts/I18nContext';
+import { useEvents, type AppEvent } from '@/hooks/useEvents';
+import { Button } from '@/components/ui/button';
+import { Navigation, Star, Calendar, Clock, Users } from 'lucide-react';
+
+function formatDate(dateStr: string, lang: string): string {
+  return new Date(dateStr).toLocaleDateString(lang === 'fr' ? 'fr-CA' : 'en-CA', {
+    weekday: 'short', month: 'short', day: 'numeric',
+  });
+}
+
+function formatTime(dateStr: string): string {
+  const d = new Date(dateStr);
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
+function DemandStars({ impact }: { impact: number }) {
+  return (
+    <div className="flex gap-0.5">
+      {Array.from({ length: 5 }, (_, i) => (
+        <Star
+          key={i}
+          className={`w-4 h-4 ${i < impact ? 'fill-primary text-primary' : 'text-muted-foreground/30'}`}
+        />
+      ))}
+    </div>
+  );
+}
+
+function CategoryBadge({ category }: { category: string }) {
+  const labels: Record<string, { label: string; emoji: string }> = {
+    hockey: { label: 'NHL', emoji: '🏒' },
+    festival: { label: 'Festival', emoji: '🎵' },
+    holiday: { label: 'Férié', emoji: '🎉' },
+    event: { label: 'Événement', emoji: '📅' },
+  };
+  const c = labels[category] ?? labels.event;
+  return (
+    <span className="inline-flex items-center gap-1 bg-accent rounded-full px-2.5 py-0.5 text-[12px] font-display font-medium">
+      {c.emoji} {c.label}
+    </span>
+  );
+}
+
+function EventCard({ event, lang, isToday }: { event: AppEvent; lang: string; isToday: boolean }) {
+  const googleUrl = `https://www.google.com/maps/dir/?api=1&destination=${event.latitude},${event.longitude}&travelmode=driving`;
+  const now = new Date();
+  const endAt = new Date(event.end_at);
+  const minutesUntilEnd = Math.round((endAt.getTime() - now.getTime()) / 60_000);
+  const isEndingSoon = isToday && minutesUntilEnd > 0 && minutesUntilEnd <= 60;
+  const isActive = isToday && now >= new Date(event.start_at) && now <= endAt;
+
+  return (
+    <div className={`bg-card rounded-xl border border-border p-4 space-y-3 ${isActive ? 'ring-1 ring-primary/50' : ''}`}>
+      {isEndingSoon && (
+        <div className="flex items-center gap-2 bg-destructive/20 border border-destructive/40 rounded-lg px-3 py-2">
+          <span className="text-[14px] font-body font-bold text-destructive">
+            🔴 {event.name} se termine dans {minutesUntilEnd}min – Demande maximale prévue!
+          </span>
+        </div>
+      )}
+
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 mb-1">
+            <CategoryBadge category={event.category} />
+            {isActive && (
+              <span className="inline-flex items-center gap-1 bg-primary/20 text-primary rounded-full px-2 py-0.5 text-[11px] font-bold uppercase">
+                En cours
+              </span>
+            )}
+          </div>
+          <h3 className="text-[20px] font-display font-bold leading-tight break-words">{event.name}</h3>
+          <p className="text-[14px] text-muted-foreground mt-0.5">{event.venue}</p>
+        </div>
+        <DemandStars impact={event.demand_impact} />
+      </div>
+
+      <div className="flex items-center gap-4 text-[14px] text-muted-foreground font-body">
+        <span className="flex items-center gap-1">
+          <Calendar className="w-3.5 h-3.5" />
+          {formatDate(event.start_at, lang)}
+        </span>
+        <span className="flex items-center gap-1">
+          <Clock className="w-3.5 h-3.5" />
+          {formatTime(event.start_at)}–{formatTime(event.end_at)}
+        </span>
+        {event.capacity > 0 && (
+          <span className="flex items-center gap-1">
+            <Users className="w-3.5 h-3.5" />
+            {event.capacity.toLocaleString()}
+          </span>
+        )}
+      </div>
+
+      <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
+        <span>Boost: ×{event.boost_multiplier}</span>
+        <span>·</span>
+        <span>Rayon: {event.boost_radius_km} km</span>
+      </div>
+
+      {!event.is_holiday && (
+        <Button asChild className="w-full h-14 text-[16px] font-display font-bold gap-2 bg-primary text-primary-foreground hover:bg-primary/90">
+          <a href={googleUrl} target="_blank" rel="noopener noreferrer">
+            <Navigation className="w-4 h-4" />
+            Naviguer vers {event.venue}
+          </a>
+        </Button>
+      )}
+    </div>
+  );
+}
+
+export default function EventsScreen() {
+  const { lang } = useI18n();
+  const { data: events = [] } = useEvents('mtl');
+
+  // Build stable date boundaries for today (local timezone)
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const todayEnd = new Date(todayStart);
+  todayEnd.setDate(todayEnd.getDate() + 1);
+  const weekEnd = new Date(todayStart);
+  weekEnd.setDate(weekEnd.getDate() + 8);
+
+  const todayMs = todayStart.getTime();
+  const todayEndMs = todayEnd.getTime();
+  const weekEndMs = weekEnd.getTime();
+
+  // Today: any event that overlaps with today (started before tomorrow AND ends after midnight today)
+  // This includes events starting later tonight that haven't begun yet
+  const todayEvents = useMemo(() =>
+    events.filter(e => {
+      const startMs = new Date(e.start_at).getTime();
+      const endMs = new Date(e.end_at).getTime();
+      return startMs < todayEndMs && endMs >= todayMs;
+    }),
+    [events, todayMs, todayEndMs],
+  );
+
+  // Next 7 days: events starting from tomorrow through next week
+  const upcomingEvents = useMemo(() =>
+    events.filter(e => {
+      const startMs = new Date(e.start_at).getTime();
+      return startMs >= todayEndMs && startMs < weekEndMs;
+    }),
+    [events, todayEndMs, weekEndMs],
+  );
+
+  return (
+    <div className="flex flex-col h-full pb-36 overflow-y-auto">
+      <div className="px-3 pt-3 pb-2">
+        <h1 className="text-[22px] font-display font-bold">
+          {lang === 'fr' ? 'Événements' : 'Events'}
+        </h1>
+      </div>
+
+      <div className="px-3 space-y-3">
+        {/* Today's events */}
+        <h2 className="text-[16px] font-display font-bold text-primary uppercase tracking-wide">
+          {lang === 'fr' ? "Aujourd'hui" : 'Today'}
+          {todayEvents.length > 0 && (
+            <span className="ml-2 bg-primary text-primary-foreground text-[12px] rounded-full px-2 py-0.5 font-bold">
+              {todayEvents.length}
+            </span>
+          )}
+        </h2>
+        {todayEvents.length === 0 && (
+          <p className="text-[14px] text-muted-foreground font-body py-4">
+            {lang === 'fr' ? 'Aucun événement aujourd\'hui' : 'No events today'}
+          </p>
+        )}
+        {todayEvents.map(e => <EventCard key={e.id} event={e} lang={lang} isToday />)}
+
+        {/* Next 7 days */}
+        <h2 className="text-[16px] font-display font-bold text-muted-foreground uppercase tracking-wide mt-4">
+          {lang === 'fr' ? '7 prochains jours' : 'Next 7 days'}
+        </h2>
+        {upcomingEvents.length === 0 && (
+          <p className="text-[14px] text-muted-foreground font-body py-4">
+            {lang === 'fr' ? 'Aucun événement à venir' : 'No upcoming events'}
+          </p>
+        )}
+        {upcomingEvents.map(e => <EventCard key={e.id} event={e} lang={lang} isToday={false} />)}
+      </div>
+    </div>
+  );
+}

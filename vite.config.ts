@@ -79,6 +79,26 @@ export default defineConfig(({ mode }) => ({
       },
     }),
   ].filter(Boolean),
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules/mapbox-gl')) {
+            return 'mapbox-gl';
+          }
+          if (id.includes('node_modules/react-map-gl')) {
+            return 'react-map-gl';
+          }
+          if (id.includes('node_modules/lucide-react')) {
+            return 'lucide-react';
+          }
+          if (id.includes('node_modules/recharts') || id.includes('node_modules/@radix-ui')) {
+            return 'ui-vendors';
+          }
+        },
+      },
+    },
+  },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),

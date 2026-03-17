@@ -4,8 +4,8 @@ import { useEvents, type AppEvent } from '@/hooks/useEvents';
 import { Button } from '@/components/ui/button';
 import { Navigation, Star, Calendar, Clock, Users } from 'lucide-react';
 
-function formatDate(dateStr: string, lang: string): string {
-  return new Date(dateStr).toLocaleDateString(lang === 'fr' ? 'fr-CA' : 'en-CA', {
+function formatDate(dateStr: string, locale: string): string {
+  return new Date(dateStr).toLocaleDateString(locale, {
     weekday: 'short', month: 'short', day: 'numeric',
   });
 }
@@ -29,11 +29,12 @@ function DemandStars({ impact }: { impact: number }) {
 }
 
 function CategoryBadge({ category }: { category: string }) {
+  const { t } = useI18n();
   const labels: Record<string, { label: string; emoji: string }> = {
-    hockey: { label: 'NHL', emoji: '🏒' },
-    festival: { label: 'Festival', emoji: '🎵' },
-    holiday: { label: 'Férié', emoji: '🎉' },
-    event: { label: 'Événement', emoji: '📅' },
+    hockey: { label: t('eventCategoryHockey'), emoji: '🏒' },
+    festival: { label: t('eventCategoryFestival'), emoji: '🎵' },
+    holiday: { label: t('eventCategoryHoliday'), emoji: '🎉' },
+    event: { label: t('eventCategoryEvent'), emoji: '📅' },
   };
   const c = labels[category] ?? labels.event;
   return (
@@ -43,7 +44,8 @@ function CategoryBadge({ category }: { category: string }) {
   );
 }
 
-function EventCard({ event, lang, isToday }: { event: AppEvent; lang: string; isToday: boolean }) {
+function EventCard({ event, isToday }: { event: AppEvent; isToday: boolean }) {
+  const { t, locale } = useI18n();
   const googleUrl = `https://www.google.com/maps/dir/?api=1&destination=${event.latitude},${event.longitude}&travelmode=driving`;
   const now = new Date();
   const endAt = new Date(event.end_at);
@@ -56,7 +58,7 @@ function EventCard({ event, lang, isToday }: { event: AppEvent; lang: string; is
       {isEndingSoon && (
         <div className="flex items-center gap-2 bg-destructive/20 border border-destructive/40 rounded-lg px-3 py-2">
           <span className="text-[14px] font-body font-bold text-destructive">
-            🔴 {event.name} se termine dans {minutesUntilEnd}min – Demande maximale prévue!
+            🔴 {event.name} {t('eventEndsIn')} {minutesUntilEnd}{t('minutes')} – {t('maxDemandExpected')}
           </span>
         </div>
       )}
@@ -67,7 +69,7 @@ function EventCard({ event, lang, isToday }: { event: AppEvent; lang: string; is
             <CategoryBadge category={event.category} />
             {isActive && (
               <span className="inline-flex items-center gap-1 bg-primary/20 text-primary rounded-full px-2 py-0.5 text-[11px] font-bold uppercase">
-                En cours
+                {t('ongoing')}
               </span>
             )}
           </div>
@@ -80,7 +82,7 @@ function EventCard({ event, lang, isToday }: { event: AppEvent; lang: string; is
       <div className="flex items-center gap-4 text-[14px] text-muted-foreground font-body">
         <span className="flex items-center gap-1">
           <Calendar className="w-3.5 h-3.5" />
-          {formatDate(event.start_at, lang)}
+          {formatDate(event.start_at, locale)}
         </span>
         <span className="flex items-center gap-1">
           <Clock className="w-3.5 h-3.5" />
@@ -95,16 +97,16 @@ function EventCard({ event, lang, isToday }: { event: AppEvent; lang: string; is
       </div>
 
       <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
-        <span>Boost: ×{event.boost_multiplier}</span>
+        <span>{t('boost')}: ×{event.boost_multiplier}</span>
         <span>·</span>
-        <span>Rayon: {event.boost_radius_km} km</span>
+        <span>{t('radius')}: {event.boost_radius_km} km</span>
       </div>
 
       {!event.is_holiday && (
         <Button asChild className="w-full h-14 text-[16px] font-display font-bold gap-2 bg-primary text-primary-foreground hover:bg-primary/90">
           <a href={googleUrl} target="_blank" rel="noopener noreferrer">
             <Navigation className="w-4 h-4" />
-            Naviguer vers {event.venue}
+            {t('navigateTo')} {event.venue}
           </a>
         </Button>
       )}
@@ -113,7 +115,7 @@ function EventCard({ event, lang, isToday }: { event: AppEvent; lang: string; is
 }
 
 export default function EventsScreen() {
-  const { lang } = useI18n();
+  const { locale } = useI18n();
   const { data: events = [] } = useEvents('mtl');
 
   // Build stable date boundaries for today (local timezone)
@@ -152,14 +154,14 @@ export default function EventsScreen() {
     <div className="flex flex-col h-full pb-36 overflow-y-auto">
       <div className="px-3 pt-3 pb-2">
         <h1 className="text-[22px] font-display font-bold">
-          {lang === 'fr' ? 'Événements' : 'Events'}
+          {t('events')}
         </h1>
       </div>
 
       <div className="px-3 space-y-3">
         {/* Today's events */}
         <h2 className="text-[16px] font-display font-bold text-primary uppercase tracking-wide">
-          {lang === 'fr' ? "Aujourd'hui" : 'Today'}
+          {t('today')}
           {todayEvents.length > 0 && (
             <span className="ml-2 bg-primary text-primary-foreground text-[12px] rounded-full px-2 py-0.5 font-bold">
               {todayEvents.length}
@@ -168,21 +170,21 @@ export default function EventsScreen() {
         </h2>
         {todayEvents.length === 0 && (
           <p className="text-[14px] text-muted-foreground font-body py-4">
-            {lang === 'fr' ? 'Aucun événement aujourd\'hui' : 'No events today'}
+            {t('noEventsToday')}
           </p>
         )}
-        {todayEvents.map(e => <EventCard key={e.id} event={e} lang={lang} isToday />)}
+        {todayEvents.map(e => <EventCard key={e.id} event={e} isToday />)}
 
         {/* Next 7 days */}
         <h2 className="text-[16px] font-display font-bold text-muted-foreground uppercase tracking-wide mt-4">
-          {lang === 'fr' ? '7 prochains jours' : 'Next 7 days'}
+          {t('next7Days')}
         </h2>
         {upcomingEvents.length === 0 && (
           <p className="text-[14px] text-muted-foreground font-body py-4">
-            {lang === 'fr' ? 'Aucun événement à venir' : 'No upcoming events'}
+            {t('noUpcomingEvents')}
           </p>
         )}
-        {upcomingEvents.map(e => <EventCard key={e.id} event={e} lang={lang} isToday={false} />)}
+        {upcomingEvents.map(e => <EventCard key={e.id} event={e} isToday={false} />)}
       </div>
     </div>
   );

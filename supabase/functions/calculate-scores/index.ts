@@ -160,6 +160,9 @@ Deno.serve(async (req) => {
   }
 
   try {
+    if (!TM_API_KEY) {
+      throw new Error("TM_API_KEY is not configured");
+    }
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);

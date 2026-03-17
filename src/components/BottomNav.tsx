@@ -1,10 +1,10 @@
 import { NavLink } from 'react-router-dom';
-import { Calendar, Map, Layers, Settings, PartyPopper, SteeringWheel } from 'lucide-react';
+import { Calendar, Map, Layers, Settings, PartyPopper, Car } from 'lucide-react';
 import { useI18n } from '@/contexts/I18nContext';
 
 const navItems = [
   { path: '/', icon: Calendar, label: 'today' },
-  { path: '/drive', icon: SteeringWheel, label: 'drive' },
+  { path: '/drive', icon: Car, label: 'drive' },
   { path: '/planning', icon: Map, label: 'planning' },
   { path: '/events', icon: PartyPopper, label: 'events' },
   { path: '/zones', icon: Layers, label: 'zones' },

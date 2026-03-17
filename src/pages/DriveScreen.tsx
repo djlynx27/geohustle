@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useI18n } from '@/contexts/I18nContext';
 import { useCityId } from '@/hooks/useCityId';
 import { useDemandScores } from '@/hooks/useDemandScores';
@@ -19,6 +19,57 @@ export default function DriveScreen() {
   const { scores, factors, zones } = useDemandScores(cityId);
   const { location, status } = useUserLocation(15000);
 
+  const wakeLockRef = useRef<WakeLockSentinel | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function requestWakeLock() {
+      if (typeof navigator === "undefined") return;
+      // @ts-expect-error: wakeLock is not yet in TS lib
+      if (!("wakeLock" in navigator)) return;
+      try {
+        // @ts-expect-error: wakeLock is not yet in TS lib
+        const wl = await navigator.wakeLock.request("screen");
+        if (cancelled) {
+          wl.release();
+          return;
+        }
+        wakeLockRef.current = wl;
+        wl.addEventListener("release", () => {
+          if (wakeLockRef.current === wl) {
+            wakeLockRef.current = null;
+          }
+        });
+      } catch {
+        // silently ignore wake lock failures
+      }
+    }
+
+    if (document.visibilityState === "visible") {
+      requestWakeLock();
+    }
+
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        requestWakeLock();
+      } else if (wakeLockRef.current) {
+        wakeLockRef.current.release();
+        wakeLockRef.current = null;
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    return () => {
+      cancelled = true;
+      document.removeEventListener("visibilitychange", handleVisibility);
+      if (wakeLockRef.current) {
+        wakeLockRef.current.release();
+        wakeLockRef.current = null;
+      }
+    };
+  }, []);
+
   const rankedZones = useMemo(() => {
     return zones
       .map(z => ({ ...z, score: scores.get(z.id) ?? 0 }))
@@ -33,9 +84,9 @@ export default function DriveScreen() {
 
   const statusLabel =
     status === 'loading'
-      ? lang === 'fr' ? 'Localisation en cours…' : 'Getting location…'
+      ? t('gettingLocation')
       : status === 'error'
-        ? lang === 'fr' ? 'Localisation indisponible' : 'Location unavailable'
+        ? t('locationUnavailable')
         : '';
 
   return (
@@ -48,8 +99,8 @@ export default function DriveScreen() {
         <div className="flex-1 min-w-0">
           <p className="text-[13px] text-muted-foreground font-body truncate">
             {statusLabel || (heroZone
-              ? (lang === 'fr' ? 'Prêt à rouler' : 'Ready to drive')
-              : (lang === 'fr' ? 'Chargement des zones…' : 'Loading zones…'))}
+              ? t('readyToDrive')
+              : t('loadingZones'))}
           </p>
         </div>
       </div>
@@ -64,7 +115,7 @@ export default function DriveScreen() {
       <div className="flex-1 flex items-center justify-center px-4">
         <div className="w-full max-w-md bg-card rounded-3xl border border-border px-5 py-6 space-y-4 shadow-lg">
           <p className="text-[13px] font-body uppercase tracking-wide text-muted-foreground text-center">
-            {lang === 'fr' ? 'Meilleure zone maintenant' : 'Best zone now'}
+            {t('bestZoneNow')}
           </p>
 
           {heroZone ? (
@@ -98,7 +149,7 @@ export default function DriveScreen() {
                     rel="noopener noreferrer"
                   >
                     <Navigation className="w-5 h-5" />
-                    {lang === 'fr' ? 'GO — Google Maps' : 'GO — Google Maps'}
+                    {t('goGoogleMaps')}
                   </a>
                 </Button>
                 <Button
@@ -111,14 +162,14 @@ export default function DriveScreen() {
                     target="_blank"
                     rel="noopener noreferrer"
                   >
-                    🧭 Waze
+                    🧭 {t('waze')}
                   </a>
                 </Button>
               </div>
             </>
           ) : (
             <p className="text-[16px] text-muted-foreground font-body text-center">
-              {lang === 'fr' ? 'Aucune zone disponible pour le moment.' : 'No zones available right now.'}
+              {t('noZonesAvailable')}
             </p>
           )}
         </div>

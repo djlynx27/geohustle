@@ -1,6 +1,6 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { useZones } from '@/hooks/useSupabase';
+import { useZones, type Zone } from '@/hooks/useSupabase';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -22,7 +22,7 @@ interface ParsedTrip {
 }
 
 // Map time+day patterns to zone types for auto-assignment
-function guessZoneByTime(hour: number, dayOfWeek: number, zones: any[]): { id: string; name: string } | null {
+function guessZoneByTime(hour: number, dayOfWeek: number, zones: Zone[]): { id: string; name: string } | null {
   // dayOfWeek: 0=Sun, 6=Sat
   const isWeekend = dayOfWeek === 0 || dayOfWeek === 5 || dayOfWeek === 6;
 
@@ -53,8 +53,8 @@ function guessZoneByTime(hour: number, dayOfWeek: number, zones: any[]): { id: s
 
   // Fallback: highest base_score zone
   if (zones.length > 0) {
-    const best = zones.reduce((a: any, b: any) => ((a.base_score || 0) > (b.base_score || 0) ? a : b));
-    return { id: best.id, name: best.name };
+    const best = zones.reduce((a, b) => ((a.base_score ?? 0) > (b.base_score ?? 0) ? a : b));
+    return best ? { id: best.id, name: best.name } : null;
   }
   return null;
 }
@@ -98,7 +98,7 @@ export function CsvImporter() {
   const { data: mtlZones = [] } = useZones('mtl');
   const { data: lavalZones = [] } = useZones('laval');
   const { data: longueuilZones = [] } = useZones('longueuil');
-  const allZones = [...mtlZones, ...lavalZones, ...longueuilZones];
+  const allZones = useMemo<Zone[]>(() => [...mtlZones, ...lavalZones, ...longueuilZones], [mtlZones, lavalZones, longueuilZones]);
 
   const [file, setFile] = useState<File | null>(null);
   const [parsed, setParsed] = useState<ParsedTrip[]>([]);

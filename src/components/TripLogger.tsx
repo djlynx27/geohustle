@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { MapPin, Clock, DollarSign, Loader2, Plus } from 'lucide-react';
+import { MapPin, Clock, DollarSign, Loader2, Plus, Smartphone } from 'lucide-react';
 import { toast } from 'sonner';
 
 function useRecentTrips() {
@@ -37,6 +37,7 @@ function useAddTrip() {
       tips: number;
       distance_km: number;
       notes: string;
+      platform: string | null;
       experiment?: boolean;
     }) => {
       const { error } = await supabase.from('trips').insert(trip as any);
@@ -82,6 +83,7 @@ export function TripLogger() {
     tips: '',
     distance_km: '',
     notes: '',
+    platform: '',
   });
 
   function updateField(field: string, value: string) {
@@ -103,6 +105,7 @@ export function TripLogger() {
       tips: parseFloat(form.tips) || 0,
       distance_km: parseFloat(form.distance_km) || 0,
       notes: form.notes.trim().slice(0, 500),
+      platform: form.platform || null,
     });
     setForm(f => ({ ...f, earnings: '', tips: '', distance_km: '', notes: '' }));
   }
@@ -141,6 +144,22 @@ export function TripLogger() {
           <Input type="time" value={form.end_time} onChange={e => updateField('end_time', e.target.value)} className="bg-background border-border" />
         </div>
 
+        {/* Platform */}
+        <Select value={form.platform} onValueChange={v => updateField('platform', v)}>
+          <SelectTrigger className="bg-background border-border">
+            <SelectValue placeholder="Plateforme (Uber, Lyft, Skip...)" />
+          </SelectTrigger>
+          <SelectContent className="bg-card border-border max-h-60">
+            <SelectItem value="uber">Uber</SelectItem>
+            <SelectItem value="lyft">Lyft</SelectItem>
+            <SelectItem value="skip">SkipTheDishes</SelectItem>
+            <SelectItem value="doordash">DoorDash</SelectItem>
+            <SelectItem value="eva">Eva</SelectItem>
+            <SelectItem value="taxi">Taxi / Taxi Fantôme</SelectItem>
+            <SelectItem value="other">Autre</SelectItem>
+          </SelectContent>
+        </Select>
+
         {/* Earnings + tips + distance */}
         <div className="grid grid-cols-3 gap-2">
           <Input type="number" step="0.01" placeholder="Gains $" value={form.earnings} onChange={e => updateField('earnings', e.target.value)} className="bg-background border-border" />
@@ -166,10 +185,18 @@ export function TripLogger() {
                   <span className="text-sm font-display font-semibold truncate">
                     {trip.zones?.name || 'Zone inconnue'}
                   </span>
-                  <Badge variant="secondary" className="text-xs shrink-0">
-                    <DollarSign className="w-3 h-3 mr-0.5" />
-                    {Number(trip.earnings || 0).toFixed(2)}
-                  </Badge>
+                  <div className="flex items-center gap-1">
+                    {trip.platform && (
+                      <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                        <Smartphone className="w-3 h-3 mr-0.5" />
+                        {String(trip.platform)}
+                      </Badge>
+                    )}
+                    <Badge variant="secondary" className="text-xs shrink-0">
+                      <DollarSign className="w-3 h-3 mr-0.5" />
+                      {Number(trip.earnings || 0).toFixed(2)}
+                    </Badge>
+                  </div>
                 </div>
                 <div className="flex items-center gap-3 text-xs text-muted-foreground">
                   <span className="flex items-center gap-1">

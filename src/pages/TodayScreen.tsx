@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useI18n } from '@/contexts/I18nContext';
 import { CitySelect } from '@/components/CitySelect';
@@ -10,7 +10,7 @@ import { getActiveTimeBoosts } from '@/lib/timeBoosts';
 import { Clock, PartyPopper, Download, WifiOff, Navigation, Bell, BellOff, Ticket } from 'lucide-react';
 import { ScoreFactorIcons } from '@/components/ScoreFactorIcons';
 import { WeatherWidget } from '@/components/WeatherWidget';
-import { MapboxHeatmap } from '@/components/MapboxHeatmap';
+const MapboxHeatmap = lazy(() => import('@/components/MapboxHeatmap'));
 import { useHoliday } from '@/hooks/useHoliday';
 import { useHabsGame } from '@/hooks/useHabsGame';
 import { usePwaInstall } from '@/hooks/usePwaInstall';
@@ -112,23 +112,23 @@ export default function TodayScreen() {
         {!isOnline && (
           <div className="flex items-center gap-2 bg-destructive/20 border border-destructive/40 rounded-lg px-3 py-2">
             <WifiOff className="w-5 h-5 text-destructive flex-shrink-0" />
-            <span className="text-[14px] font-body font-medium text-destructive">Hors ligne</span>
+            <span className="text-[14px] font-body font-medium text-destructive">{t('offline')}</span>
           </div>
         )}
         {canInstall && (
           <Button onClick={install} variant="outline" className="w-full gap-2 border-primary/40 text-primary hover:bg-primary/10 h-12">
-            <Download className="w-5 h-5" /> Installer Geo-Hustle
+            <Download className="w-5 h-5" /> {t('installApp')}
           </Button>
         )}
         {!notifEnabled && (
           <Button onClick={requestPermission} variant="outline" className="w-full gap-2 border-accent/40 text-accent-foreground hover:bg-accent/10 h-12">
-            <Bell className="w-5 h-5" /> {lang === 'fr' ? 'Activer les notifications' : 'Enable notifications'}
+            <Bell className="w-5 h-5" /> {t('enableNotifications')}
           </Button>
         )}
         {notifEnabled && (
           <div className="flex items-center gap-2 bg-primary/10 border border-primary/30 rounded-lg px-3 py-2">
             <Bell className="w-4 h-4 text-primary flex-shrink-0" />
-            <span className="text-[13px] font-body text-primary">{lang === 'fr' ? 'Notifications activées' : 'Notifications enabled'}</span>
+            <span className="text-[13px] font-body text-primary">{t('notificationsEnabled')}</span>
           </div>
         )}
         {holiday?.isHoliday && holiday.name && (
@@ -140,13 +140,13 @@ export default function TodayScreen() {
         {cityId === 'mtl' && habsGame?.isHomeGame && (
           <div className="flex items-center gap-2 bg-accent/30 border border-accent rounded-lg px-3 py-2">
             <span className="text-lg flex-shrink-0">🏒</span>
-            <span className="text-[14px] font-body font-medium">Canadiens – Centre Bell</span>
+            <span className="text-[14px] font-body font-medium">{t('canadiensGame')}</span>
           </div>
         )}
         {timeBoosts.map((boost, index) => (
           <div key={index} className="flex items-center gap-2 bg-secondary border border-border rounded-lg px-3 py-2">
             <span className="text-lg flex-shrink-0">{boost.icon}</span>
-            <span className="text-[14px] font-body font-medium">{lang === 'fr' ? boost.bannerFr : boost.bannerEn}</span>
+            <span className="text-[14px] font-body font-medium">{t(boost.bannerKey)}</span>
           </div>
         ))}
         {endingSoon.map(ev => {
@@ -178,7 +178,7 @@ export default function TodayScreen() {
           <div className="flex items-center gap-2 mb-2">
             <Clock className="w-4 h-4 text-muted-foreground" />
             <span className="text-[14px] text-muted-foreground font-body uppercase tracking-wide">
-              {lang === 'fr' ? 'Meilleure zone maintenant' : 'Best zone now'} · {start}–{end}
+              {t('bestZoneNow')} · {start}–{end}
             </span>
           </div>
 
@@ -202,7 +202,7 @@ export default function TodayScreen() {
             </div>
           ) : (
             <p className="text-[18px] font-body text-muted-foreground">
-              {lang === 'fr' ? 'Chargement des zones...' : 'Loading zones...'}
+              {t('loadingZonesEllipsis')}
             </p>
           )}
 
@@ -238,12 +238,18 @@ export default function TodayScreen() {
 
       {/* 3. Heatmap */}
       <div className="flex-shrink-0 h-[260px] max-h-[260px] overflow-hidden mx-3 mt-3 rounded-xl border border-border">
-        <MapboxHeatmap
-          center={mapCenter}
-          zoom={13}
-          markers={mapMarkers}
-          onZoneClick={(z) => setNavZone({ name: z.name, lat: z.latitude, lng: z.longitude })}
-        />
+        <Suspense
+          fallback={
+            <div className="flex items-center justify-center h-full text-sm text-muted-foreground">Chargement de la carte…</div>
+          }
+        >
+          <MapboxHeatmap
+            center={mapCenter}
+            zoom={13}
+            markers={mapMarkers}
+            onZoneClick={(z) => setNavZone({ name: z.name, lat: z.latitude, lng: z.longitude })}
+          />
+        </Suspense>
       </div>
 
       {/* Multi-App Status */}

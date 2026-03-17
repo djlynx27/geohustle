@@ -5,6 +5,7 @@
 export interface TimeBoost {
   zoneTypes: string[];
   boost: number;
+  bannerKey: string;
   bannerFr: string;
   bannerEn: string;
   icon: string;
@@ -24,6 +25,7 @@ export function getActiveTimeBoosts(now: Date): TimeBoost[] {
     boosts.push({
       zoneTypes: ['métro', 'transport'],
       boost: 20,
+      bannerKey: 'boostWeekdayMorningRush',
       bannerFr: 'Heure de pointe – zones métro prioritaires 🚇',
       bannerEn: 'Rush hour – metro zones prioritized 🚇',
       icon: '🚇',
@@ -35,6 +37,7 @@ export function getActiveTimeBoosts(now: Date): TimeBoost[] {
     boosts.push({
       zoneTypes: ['métro', 'transport'],
       boost: 15,
+      bannerKey: 'boostWeekdayEveningRush',
       bannerFr: 'Heure de pointe du soir – zones métro en hausse 🚇',
       bannerEn: 'Evening rush – metro zones boosted 🚇',
       icon: '🚇',
@@ -46,6 +49,7 @@ export function getActiveTimeBoosts(now: Date): TimeBoost[] {
     boosts.push({
       zoneTypes: ['nightlife'],
       boost: 25,
+      bannerKey: 'boostWeekendNight',
       bannerFr: 'Nuit du week-end – zones nightlife en forte demande 🎉',
       bannerEn: 'Weekend night – nightlife zones in high demand 🎉',
       icon: '🎉',
@@ -57,6 +61,7 @@ export function getActiveTimeBoosts(now: Date): TimeBoost[] {
     boosts.push({
       zoneTypes: ['nightlife', 'événements'],
       boost: 30,
+      bannerKey: 'boostFriSatNight',
       bannerFr: 'Vendredi/Samedi soir – nightlife & casino en hausse 🎰',
       bannerEn: 'Friday/Saturday night – nightlife & casino boosted 🎰',
       icon: '🎰',
@@ -68,6 +73,7 @@ export function getActiveTimeBoosts(now: Date): TimeBoost[] {
     boosts.push({
       zoneTypes: ['commercial'],
       boost: 20,
+      bannerKey: 'boostSunday',
       bannerFr: 'Dimanche – zones commerciales en hausse 🛍️',
       bannerEn: 'Sunday – commercial zones boosted 🛍️',
       icon: '🛍️',
@@ -79,6 +85,7 @@ export function getActiveTimeBoosts(now: Date): TimeBoost[] {
     boosts.push({
       zoneTypes: ['commercial', 'université'],
       boost: 15,
+      bannerKey: 'boostLunch',
       bannerFr: 'Heure du dîner – zones commerciales & universités 🍽️',
       bannerEn: 'Lunch hour – commercial & university zones 🍽️',
       icon: '🍽️',

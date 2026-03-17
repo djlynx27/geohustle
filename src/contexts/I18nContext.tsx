@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
 
 type Lang = 'en' | 'fr';
 
@@ -40,12 +40,50 @@ const translations: Record<string, Record<Lang, string>> = {
   simulated: { en: 'Simulated', fr: 'Simulé' },
   edit: { en: 'Edit', fr: 'Modifier' },
   events: { en: 'Events', fr: 'Événements' },
+  noEventsToday: { en: 'No events today', fr: 'Aucun événement aujourd\'hui' },
+  next7Days: { en: 'Next 7 days', fr: '7 prochains jours' },
+  noUpcomingEvents: { en: 'No upcoming events', fr: 'Aucun événement à venir' },
+  noZonesAvailable: { en: 'No zones available right now.', fr: 'Aucune zone disponible pour le moment.' },
+  eventCategoryHockey: { en: 'NHL', fr: 'NHL' },
+  eventCategoryFestival: { en: 'Festival', fr: 'Festival' },
+  eventCategoryHoliday: { en: 'Holiday', fr: 'Férié' },
+  eventCategoryEvent: { en: 'Event', fr: 'Événement' },
+
+  offline: { en: 'Offline', fr: 'Hors ligne' },
+  installApp: { en: 'Install Geo-Hustle', fr: 'Installer Geo-Hustle' },
+  enableNotifications: { en: 'Enable notifications', fr: 'Activer les notifications' },
+  notificationsEnabled: { en: 'Notifications enabled', fr: 'Notifications activées' },
+  readyToDrive: { en: 'Ready to drive', fr: 'Prêt à rouler' },
+  close: { en: 'Close', fr: 'Fermer' },
+  goGoogleMaps: { en: 'GO — Google Maps', fr: 'GO — Google Maps' },
+  waze: { en: 'Waze', fr: 'Waze' },
+  canadiensGame: { en: 'Canadiens – Centre Bell', fr: 'Canadiens – Centre Bell' },
+  boostWeekdayMorningRush: { en: 'Rush hour – metro zones prioritized 🚇', fr: 'Heure de pointe – zones métro prioritaires 🚇' },
+  boostWeekdayEveningRush: { en: 'Evening rush – metro zones boosted 🚇', fr: 'Heure de pointe du soir – zones métro en hausse 🚇' },
+  boostWeekendNight: { en: 'Weekend night – nightlife zones in high demand 🎉', fr: 'Nuit du week-end – zones nightlife en forte demande 🎉' },
+  boostFriSatNight: { en: 'Friday/Saturday night – nightlife & casino boosted 🎰', fr: 'Vendredi/Samedi soir – nightlife & casino en hausse 🎰' },
+  boostSunday: { en: 'Sunday – commercial zones boosted 🛍️', fr: 'Dimanche – zones commerciales en hausse 🛍️' },
+  boostLunch: { en: 'Lunch hour – commercial & university zones 🍽️', fr: 'Heure du dîner – zones commerciales & universités 🍽️' },
+  gettingLocation: { en: 'Getting location…', fr: 'Localisation en cours…' },
+  locationUnavailable: { en: 'Location unavailable', fr: 'Localisation indisponible' },
+  bestZoneNow: { en: 'Best zone now', fr: 'Meilleure zone maintenant' },
+  loadingZones: { en: 'Loading zones…', fr: 'Chargement des zones…' },
+  loadingZonesEllipsis: { en: 'Loading zones...', fr: 'Chargement des zones...' },
+  eventEndsIn: { en: 'ends in', fr: 'se termine dans' },
+  minutes: { en: 'min', fr: 'min' },
+  maxDemandExpected: { en: 'Max demand expected!', fr: 'Demande maximale prévue !' },
+  ongoing: { en: 'Ongoing', fr: 'En cours' },
+  boost: { en: 'Boost', fr: 'Boost' },
+  radius: { en: 'Radius', fr: 'Rayon' },
+  navigateTo: { en: 'Navigate to', fr: 'Naviguer vers' },
+  yesHere: { en: 'Yes, I want', fr: 'Oui, je veux' },
 };
 
 interface I18nContextType {
   lang: Lang;
   toggleLang: () => void;
   t: (key: string) => string;
+  locale: string;
 }
 
 const I18nContext = createContext<I18nContextType>({
@@ -58,9 +96,10 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
   const [lang, setLang] = useState<Lang>('fr');
   const toggleLang = useCallback(() => setLang(l => l === 'en' ? 'fr' : 'en'), []);
   const t = useCallback((key: string) => translations[key]?.[lang] ?? key, [lang]);
+  const locale = useMemo(() => (lang === 'fr' ? 'fr-CA' : 'en-CA'), [lang]);
 
   return (
-    <I18nContext.Provider value={{ lang, toggleLang, t }}>
+    <I18nContext.Provider value={{ lang, toggleLang, t, locale }}>
       {children}
     </I18nContext.Provider>
   );

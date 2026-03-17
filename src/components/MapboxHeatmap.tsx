@@ -1,4 +1,4 @@
-import { useRef, useCallback, useState, useEffect } from 'react';
+import { useRef, useCallback, useState, useEffect, Component, ReactNode } from 'react';
 import Map, { Source, Layer, Marker, type MapRef } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 
@@ -19,6 +19,29 @@ interface MapboxHeatmapProps {
   markers: HeatmapZone[];
   onZoneClick?: (zone: HeatmapZone) => void;
   className?: string;
+}
+
+class MapErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
+  state = { hasError: false };
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: Error) {
+    console.error("MapboxHeatmap crashed:", error);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="w-full h-full flex items-center justify-center bg-muted text-muted-foreground text-xs px-2 text-center">
+          Carte temporairement indisponible
+        </div>
+      );
+    }
+    return this.props.children;
+  }
 }
 
 function getMarkerColor(score: number): string {
@@ -54,7 +77,9 @@ export function MapboxHeatmap({ center, zoom = 11, markers, onZoneClick, classNa
     if (!navigator.geolocation) return;
     const watchId = navigator.geolocation.watchPosition(
       (pos) => setDriverPos({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-      () => {},
+      (error) => {
+        console.warn('Geolocation watch error:', error.message || error);
+      },
       { enableHighAccuracy: false, timeout: 10000, maximumAge: 10000 }
     );
     return () => navigator.geolocation.clearWatch(watchId);
@@ -67,7 +92,7 @@ export function MapboxHeatmap({ center, zoom = 11, markers, onZoneClick, classNa
 
   useEffect(() => {
     mapRef.current?.flyTo({ center: [center[1], center[0]], zoom, duration: 800 });
-  }, [center[0], center[1], zoom]);
+  }, [center, zoom]);
 
   // GeoJSON for heatmap
   const geojson: GeoJSON.FeatureCollection = {
@@ -81,6 +106,7 @@ export function MapboxHeatmap({ center, zoom = 11, markers, onZoneClick, classNa
 
   return (
     <div className={`w-full h-full ${className}`}>
+      <MapErrorBoundary>
       <Map
         ref={mapRef}
         initialViewState={{
@@ -146,6 +172,7 @@ export function MapboxHeatmap({ center, zoom = 11, markers, onZoneClick, classNa
           </Marker>
         )}
       </Map>
+      </MapErrorBoundary>
     </div>
   );
 }

@@ -13,7 +13,7 @@ interface NavigationSheetProps {
 }
 
 export function NavigationSheet({ open, onClose, zoneName, latitude, longitude }: NavigationSheetProps) {
-  const { lang } = useI18n();
+  const { t } = useI18n();
 
   const googleUrl = getGoogleMapsNavUrl(zoneName, latitude, longitude);
   const wazeUrl = getWazeNavUrl(zoneName, latitude, longitude);
@@ -37,7 +37,7 @@ export function NavigationSheet({ open, onClose, zoneName, latitude, longitude }
             </a>
           </Button>
           <Button variant="outline" className="w-full text-[18px] h-16 font-display" onClick={onClose}>
-            ✕ {lang === 'fr' ? 'Fermer' : 'Close'}
+            ✕ {t('close')}
           </Button>
         </div>
       </SheetContent>

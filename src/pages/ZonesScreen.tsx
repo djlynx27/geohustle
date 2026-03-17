@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, lazy, Suspense } from 'react';
 import { useI18n } from '@/contexts/I18nContext';
 import { CitySelect } from '@/components/CitySelect';
 import { useCities, useZones, useAddZone, useUpdateZone, useDeleteZone, type Zone } from '@/hooks/useSupabase';
@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Plus, Pencil, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Constants } from '@/integrations/supabase/types';
-import { MapboxHeatmap } from '@/components/MapboxHeatmap';
+const MapboxHeatmap = lazy(() => import('@/components/MapboxHeatmap'));
 import { useCityId } from '@/hooks/useCityId';
 import { ZonePerformanceHeatmap } from '@/components/ZonePerformanceHeatmap';
 
@@ -106,7 +106,13 @@ export default function ZonesScreen() {
 
       <div className="flex-1 overflow-y-auto px-4 pb-4">
         <div className="relative z-[1] h-[220px] w-full overflow-hidden rounded-lg border border-border">
-          <MapboxHeatmap center={mapCenter} zoom={11} markers={mapMarkers} />
+          <Suspense
+            fallback={
+              <div className="flex items-center justify-center h-full text-sm text-muted-foreground">Chargement de la carte…</div>
+            }
+          >
+            <MapboxHeatmap center={mapCenter} zoom={11} markers={mapMarkers} />
+          </Suspense>
         </div>
 
         {/* Performance Heatmap */}
