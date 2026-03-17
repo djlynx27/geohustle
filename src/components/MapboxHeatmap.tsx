@@ -1,4 +1,5 @@
 import { useRef, useCallback, useState, useEffect, Component, ReactNode } from 'react';
+import { useI18n } from '@/contexts/I18nContext';
 import Map, { Source, Layer, Marker, type MapRef } from 'react-map-gl';
 import { LeafletMap } from './LeafletMap';
 import 'mapbox-gl/dist/mapbox-gl.css';
@@ -70,8 +71,10 @@ function DriverDot() {
 }
 
 export function MapboxHeatmap({ center, zoom = 11, markers, onZoneClick, className = '' }: MapboxHeatmapProps) {
+  const { t } = useI18n();
   const mapRef = useRef<MapRef>(null);
   const [driverPos, setDriverPos] = useState<{ lat: number; lng: number } | null>(null);
+  const [locationError, setLocationError] = useState<string | null>(null);
 
   // Watch driver GPS
   useEffect(() => {
@@ -79,7 +82,9 @@ export function MapboxHeatmap({ center, zoom = 11, markers, onZoneClick, classNa
     const watchId = navigator.geolocation.watchPosition(
       (pos) => setDriverPos({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
       (error) => {
-        console.warn('Geolocation watch error:', error.message || error);
+        const message = error.message || 'Unable to watch location';
+        console.warn('Geolocation watch error:', message);
+        setLocationError(message);
       },
       { enableHighAccuracy: false, timeout: 10000, maximumAge: 10000 }
     );
@@ -119,6 +124,11 @@ export function MapboxHeatmap({ center, zoom = 11, markers, onZoneClick, classNa
   return (
     <div className={`w-full h-full ${className}`}>
       <MapErrorBoundary>
+        {locationError && (
+          <div className="absolute z-10 top-2 right-2 px-3 py-1 rounded-lg bg-red-600/90 text-white text-[11px]">
+            ⚠ {t('locationPermissionTip')}
+          </div>
+        )}
       <Map
         ref={mapRef}
         initialViewState={{

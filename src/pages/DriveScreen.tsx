@@ -86,7 +86,7 @@ export default function DriveScreen() {
     status === 'loading'
       ? t('gettingLocation')
       : status === 'error'
-        ? t('locationUnavailable')
+        ? `${t('locationUnavailable')} - ${t('locationPermissionTip')}`
         : '';
 
   return (

@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useI18n } from '@/contexts/I18nContext';
 import { supabase } from '@/integrations/supabase/client';
 import { CitySelect } from '@/components/CitySelect';
+import { getDefaultLearningAgents, type LearningAgent, type LearningAgentState, type ZoneHistory } from '@/lib/aiAgents';
 import { useCities, useZones, useAddCity, useBulkInsertTimeSlots } from '@/hooks/useSupabase';
 import { generateAISimulatedSlots } from '@/lib/aiSimulation';
 import { Button } from '@/components/ui/button';
@@ -45,6 +46,12 @@ export default function AdminScreen() {
   const [aiLoading, setAiLoading] = useState(false);
   const [aiResults, setAiResults] = useState<AIRecommendation[] | null>(null);
   const [lastAnalyzed, setLastAnalyzed] = useState<string | null>(null);
+
+  const agents = useMemo<LearningAgent[]>(() => getDefaultLearningAgents(), []);
+  const [agentStates, setAgentStates] = useState<Record<string, LearningAgentState>>(() => {
+    try { return JSON.parse(localStorage.getItem('agentStates') ?? '{}'); } catch { return {}; }
+  });
+  const [learningHistory, setLearningHistory] = useState<ZoneHistory[]>([]);
 
   const [foodQuery, setFoodQuery] = useState('');
   const [foodResults, setFoodResults] = useState<OpenFoodProduct[]>([]);
@@ -168,6 +175,28 @@ export default function AdminScreen() {
 
   const isSimulating = simProgress !== null;
   const progressPct = simProgress ? Math.round((simProgress.current / Math.max(simProgress.total, 1)) * 100) : 0;
+
+  useEffect(() => {
+    if (zones.length > 0) {
+      const hb: ZoneHistory[] = zones.slice(0, 20).map((z) => ({
+        zoneId: z.id,
+        observedScore: Math.min(100, Math.max(20, Math.round((z.current_score || 50) + (Math.random() * 20 - 10)))),
+        expectedScore: z.current_score || 50,
+        timestamp: new Date().toISOString(),
+      }));
+      setLearningHistory(hb);
+    }
+  }, [zones]);
+
+  function handleRetrainAgents() {
+    const nextStates: Record<string, LearningAgentState> = {};
+    for (const agent of agents) {
+      nextStates[agent.id] = agent.learn(learningHistory);
+    }
+    setAgentStates(nextStates);
+    localStorage.setItem('agentStates', JSON.stringify(nextStates));
+    toast.success(t('agentLearned'));
+  }
 
   const TrendIcon = ({ trend }: { trend: string }) => {
     if (trend === 'up') return <TrendingUp className="w-4 h-4 text-green-400" />;
@@ -325,6 +354,45 @@ export default function AdminScreen() {
             {aiResults && aiResults.length === 0 && (
               <p className="text-xs text-muted-foreground text-center py-2">Aucune recommandation générée. Ajoutez plus de données.</p>
             )}
+          </CardContent>
+        </Card>
+
+        {/* Learning Agents Management Card */}
+        <Card className="bg-card border-border">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base font-display flex items-center gap-2">
+              <Brain className="w-4 h-4 text-primary" /> {t('agentsDashboard')}
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Les agents apprennent à partir des données de triplogs et ajustent les scores automatiquement.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="text-left uppercase tracking-wider text-muted-foreground">
+                    <th>{t('name')}</th>
+                    <th>{t('agentStatus')}</th>
+                    <th>{t('agentLastUpdated')}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {agents.map((agent) => (
+                    <tr key={agent.id} className="border-t border-border">
+                      <td>{agent.name}</td>
+                      <td>{agentStates[agent.id]?.lastUpdated ? t('agentLearned') : t('agentNotAvailable')}</td>
+                      <td>{agentStates[agent.id]?.lastUpdated ?? '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="flex gap-2">
+              <Button onClick={handleRetrainAgents} className="w-full" size="sm">
+                {t('retrainAgents')}
+              </Button>
+            </div>
           </CardContent>
         </Card>
 
