@@ -4,7 +4,7 @@ import { useWeather } from '@/hooks/useWeather';
 import { useEvents, getActiveEvents, getEndingSoonEvents, getStartingSoonEvents } from '@/hooks/useEvents';
 import { useTicketmasterEvents, getRelevantTmEvents } from '@/hooks/useTicketmaster';
 import { useZoneScores } from '@/hooks/useZoneScores';
-import { scoreAllZones, type WeatherCondition, type ActiveEventBoost } from '@/lib/scoringEngine';
+import { scoreAllZonesWithLearning, type WeatherCondition, type ActiveEventBoost } from '@/lib/scoringEngine';
 import { haversineKm } from '@/hooks/useUserLocation';
 
 export interface ScoreFactors {
@@ -96,8 +96,8 @@ export function useDemandScores(cityId: string) {
       return { scores, factors };
     }
 
-    // Fallback: client-side calculation
-    return scoreAllZones(zones, now, weatherCondition, eventBoosts);
+    // Fallback: client-side calculation avec agents IA d'apprentissage
+    return scoreAllZonesWithLearning(zones, now, weatherCondition, eventBoosts, []);
   }, [zones, dbScores, now, weatherCondition, eventBoosts]);
 
   return { scores, factors, zones, weather, now, activeEvents, endingSoon, startingSoon, relevantTmEvents };

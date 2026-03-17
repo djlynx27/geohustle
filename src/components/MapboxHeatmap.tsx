@@ -1,5 +1,6 @@
 import { useRef, useCallback, useState, useEffect, Component, ReactNode } from 'react';
 import Map, { Source, Layer, Marker, type MapRef } from 'react-map-gl';
+import { LeafletMap } from './LeafletMap';
 import 'mapbox-gl/dist/mapbox-gl.css';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN as string | undefined;
@@ -103,6 +104,17 @@ export function MapboxHeatmap({ center, zoom = 11, markers, onZoneClick, classNa
       geometry: { type: 'Point', coordinates: [m.longitude, m.latitude] },
     })),
   };
+
+  if (!MAPBOX_TOKEN) {
+    return (
+      <div className={`w-full h-full ${className}`}>
+        <div className="p-3 text-xs text-muted-foreground bg-muted border border-border rounded-lg text-center">
+          Mapbox API key not configured (VITE_MAPBOX_TOKEN). Utilisation de Leaflet en secours.
+        </div>
+        <LeafletMap center={center} zoom={zoom} markers={markers.map(m => ({ id: m.id, name: m.name, type: m.type, latitude: m.latitude, longitude: m.longitude, demandScore: m.demandScore }))} className="mt-2 h-[calc(100%-2.125rem)]" />
+      </div>
+    );
+  }
 
   return (
     <div className={`w-full h-full ${className}`}>

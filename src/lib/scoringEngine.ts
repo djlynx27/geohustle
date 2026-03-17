@@ -6,6 +6,7 @@
 
 import type { Zone } from '@/hooks/useSupabase';
 import { haversineKm } from '@/hooks/useUserLocation';
+import { applyLearningAgents, type ZoneHistory } from '@/lib/aiAgents';
 
 export interface ActiveEventBoost {
   latitude: number;
@@ -353,4 +354,16 @@ export function scoreAllZones(
     factors.set(zone.id, result.factors);
   }
   return { scores, factors };
+}
+
+export function scoreAllZonesWithLearning(
+  zones: Zone[],
+  now: Date,
+  weather: WeatherCondition | null,
+  eventBoosts?: ActiveEventBoost[],
+  history: ZoneHistory[] = [],
+): { scores: Map<string, number>; factors: Map<string, ScoreFactors> } {
+  const base = scoreAllZones(zones, now, weather, eventBoosts);
+  const adjustedScores = applyLearningAgents(zones, base.scores, history);
+  return { scores: adjustedScores, factors: base.factors };
 }
