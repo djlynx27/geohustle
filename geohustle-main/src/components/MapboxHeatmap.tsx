@@ -1,5 +1,6 @@
 import { useRef, useCallback, useState, useEffect } from 'react';
 import Map, { Source, Layer, Marker, type MapRef } from 'react-map-gl';
+import { LeafletMap } from './LeafletMap';
 import 'mapbox-gl/dist/mapbox-gl.css';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN as string | undefined;
@@ -48,14 +49,20 @@ function DriverDot() {
 export function MapboxHeatmap({ center, zoom = 11, markers, onZoneClick, className = '' }: MapboxHeatmapProps) {
   const mapRef = useRef<MapRef>(null);
   const [driverPos, setDriverPos] = useState<{ lat: number; lng: number } | null>(null);
+  const [locationError, setLocationError] = useState<string | null>(null);
 
   // Watch driver GPS
   useEffect(() => {
     if (!navigator.geolocation) return;
     const watchId = navigator.geolocation.watchPosition(
-      (pos) => setDriverPos({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-      () => {},
-      { enableHighAccuracy: false, timeout: 10000, maximumAge: 10000 }
+      (pos) => {
+      setDriverPos({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+      setLocationError(null);
+    },
+    (err) => {
+      setLocationError(err.message || 'Erreur de géolocalisation');
+    },
+    { enableHighAccuracy: false, timeout: 10000, maximumAge: 10000 }
     );
     return () => navigator.geolocation.clearWatch(watchId);
   }, []);
@@ -79,8 +86,43 @@ export function MapboxHeatmap({ center, zoom = 11, markers, onZoneClick, classNa
     })),
   };
 
+  const [locationError, setLocationError] = useState<string | null>(null);
+
+  const goToMyLocation = () => {
+    if (!driverPos) return;
+    mapRef.current?.flyTo({ center: [driverPos.lng, driverPos.lat], zoom: 15, duration: 600 });
+  };
+
+  if (!MAPBOX_TOKEN) {
+    return (
+      <div className={`relative w-full h-full ${className}`}>
+        <div className="absolute top-3 left-3 z-30">
+          <button onClick={goToMyLocation} disabled={!driverPos} className="rounded-md border border-white/30 bg-white/10 px-3 py-1 text-xs text-white disabled:opacity-50">
+            📍 Me localiser
+          </button>
+        </div>
+        <div className="absolute top-14 left-3 right-3 z-20 p-2 rounded border border-white/30 bg-black/60 text-white text-xs text-center">
+          Mapbox non configuré&nbsp;: affichage en mode Leaflet fallback.
+        </div>
+        <div className="absolute inset-0">
+          <LeafletMap center={center} zoom={zoom} markers={markers} driverPosition={driverPos || undefined} />
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className={`w-full h-full ${className}`}>
+    <div className={`relative w-full h-full ${className}`}>
+      <div className="absolute top-3 left-3 z-30">
+        <button onClick={goToMyLocation} disabled={!driverPos} className="rounded-md border border-white/30 bg-white/10 px-3 py-1 text-xs text-white disabled:opacity-50">
+          📍 Me localiser
+        </button>
+      </div>
+      {locationError && (
+        <div className="absolute z-20 top-14 left-3 right-3 p-2 rounded bg-red-600/80 text-white text-[11px] text-center">
+          ⚠ {locationError}
+        </div>
+      )}
       <Map
         ref={mapRef}
         initialViewState={{

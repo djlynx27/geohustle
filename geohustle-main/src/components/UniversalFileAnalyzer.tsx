@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useZones } from '@/hooks/useSupabase';
 import { Button } from '@/components/ui/button';
@@ -33,6 +33,12 @@ export function UniversalFileAnalyzer() {
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [mode, setMode] = useState<'file' | 'url' | 'capture'>('file');
 
+  useEffect(() => {
+    if (!zoneId && allZones.length > 0) {
+      setZoneId(allZones[0].id);
+    }
+  }, [allZones, zoneId]);
+
   function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
     if (!f) return;
@@ -51,7 +57,6 @@ export function UniversalFileAnalyzer() {
   async function handleAnalyze() {
     if (mode === 'url' && !urlInput.trim()) { toast.error('Entrez un URL'); return; }
     if (mode !== 'url' && !file) { toast.error('Sélectionnez un fichier'); return; }
-    if (!zoneId) { toast.error('Sélectionnez une zone'); return; }
 
     setLoading(true);
     setResult(null);
@@ -75,14 +80,16 @@ export function UniversalFileAnalyzer() {
         }
       }
 
-      const zoneName = allZones.find(z => z.id === zoneId)?.name || 'Unknown';
+      const targetZone = allZones.find(z => z.id === zoneId) || allZones[0];
+      const zoneName = targetZone?.name || 'Unknown';
+      const zoneToSend = targetZone?.id;
 
       const { data, error } = await supabase.functions.invoke('analyze-screenshot', {
         body: {
           image_url: imageUrl || undefined,
           file_content: fileContent || undefined,
           file_name: file?.name || urlInput,
-          zone_id: zoneId,
+          zone_id: zoneToSend,
           zone_name: zoneName,
         },
       });
@@ -183,7 +190,7 @@ export function UniversalFileAnalyzer() {
           />
         )}
 
-        <Button onClick={handleAnalyze} className="w-full gap-2" disabled={loading || (!file && mode !== 'url') || (mode === 'url' && !urlInput) || !zoneId}>
+        <Button onClick={handleAnalyze} className="w-full gap-2" disabled={loading || (!file && mode !== 'url') || (mode === 'url' && !urlInput)}>
           {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
           {loading ? 'Analyse en cours…' : "Analyser avec l'IA"}
         </Button>

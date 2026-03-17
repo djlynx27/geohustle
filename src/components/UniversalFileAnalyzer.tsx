@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useZones } from '@/hooks/useSupabase';
 import { Button } from '@/components/ui/button';
@@ -16,6 +16,7 @@ interface AnalysisResult {
   overall_demand?: string;
   time_context?: string;
   notes?: string;
+  recommended_target?: 'demand' | 'shift' | 'daily' | 'mileage' | 'profit' | 'unknown';
   extracted_data?: any;
 }
 
@@ -29,6 +30,13 @@ export function UniversalFileAnalyzer() {
   const [suggestedZoneId, setSuggestedZoneId] = useState('');
   const [suggestedArea, setSuggestedArea] = useState<'demand' | 'shift' | 'daily' | 'mileage' | 'profit' | 'unknown'>('unknown');
   const [file, setFile] = useState<File | null>(null);
+
+  // Auto-select first zone pour simplifier upload statements sans interaction
+  useEffect(() => {
+    if (!zoneId && allZones.length > 0) {
+      setZoneId(allZones[0].id);
+    }
+  }, [allZones, zoneId]);
   const [urlInput, setUrlInput] = useState('');
   const [preview, setPreview] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -100,16 +108,18 @@ export function UniversalFileAnalyzer() {
         }
       }
 
-      const zoneName = allZones.find(z => z.id === zoneId || z.id === suggestedZoneId)?.name || 'Auto';
       const rawZone = zoneId ? allZones.find(z => z.id === zoneId) : undefined;
+      const zoneFallback = suggestedZoneId ? allZones.find(z => z.id === suggestedZoneId) : undefined;
+      const chosenZone = rawZone || zoneFallback || allZones[0];
+      const zoneName = chosenZone?.name || 'Auto';
 
       const { data, error } = await supabase.functions.invoke('analyze-screenshot', {
         body: {
           image_url: imageUrl || undefined,
           file_content: fileContent || undefined,
           file_name: file?.name || urlInput,
-          zone_id: rawZone?.id || suggestedZoneId || undefined,
-          zone_name: rawZone?.name || zoneName,
+          zone_id: chosenZone?.id,
+          zone_name: chosenZone?.name || zoneName,
           auto_zone: true,
           mode,
         },
@@ -137,6 +147,90 @@ export function UniversalFileAnalyzer() {
       toast.success('Analyse terminée — propositions créées');
     } catch (e: any) {
       toast.error(e.message || "Erreur lors de l'analyse");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleApplySuggestion() {
+    if (!result) {
+      toast.error("Aucune analyse disponible pour appliquer");
+      return;
+    }
+
+    const target = suggestedArea !== 'unknown' ? suggestedArea : (result.recommended_target || 'demand');
+    const selectedZone = allZones.find((z) => z.id === zoneId || z.id === suggestedZoneId);
+    if (!selectedZone) {
+      toast.error("Veuillez sélectionner une zone avant d'appliquer");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      if (target === 'demand') {
+        const { error } = await supabase.functions.invoke('ai-score-analysis', { body: { zone_id: selectedZone.id } });
+        if (error) throw error;
+        toast.success('Recalibrage de la demande déclenché pour la zone');
+      } else if (target === 'shift' || target === 'mileage') {
+        const ed = result.extracted_data || {};
+        if (!ed.earnings) {
+          toast.error('Aucune donnée de gains détectée à enregistrer');
+        } else {
+          const { error } = await supabase.from('trips').insert({
+            zone_id: selectedZone.id,
+            started_at: new Date().toISOString(),
+            ended_at: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
+            earnings: Number(ed.earnings) || 0,
+            tips: Number(ed.tips || 0),
+            distance_km: Number(ed.distance_km || 0),
+            notes: `Import automatique (${target}) de ${file?.name || 'document'}: ${result.notes || ''}`.slice(0, 500),
+          });
+          if (error) throw error;
+          toast.success('Course/mileage auto-ajoutée correctement');
+
+          // optional score refresh
+          await supabase.functions.invoke('ai-score-analysis', { body: { zone_id: selectedZone.id } });
+        }
+      } else if (target === 'daily') {
+        const { error } = await supabase.functions.invoke('generate-daily-report');
+        if (error) throw error;
+        toast.success('Rapport quotidien généré');
+      } else if (target === 'profit') {
+        const ed = result.extracted_data || {};
+        const today = new Date().toISOString().split('T')[0];
+        if (!ed.earnings) {
+          toast.error('Aucune donnée de gains/profit détectée pour le rapport');
+        } else {
+          const { data: existingReport, error: fetchErr } = await supabase
+            .from('daily_reports')
+            .select('id,total_earnings,total_trips')
+            .eq('report_date', today)
+            .single();
+          if (fetchErr && fetchErr.code !== 'PGRST116') throw fetchErr;
+
+          const baseUpdate = {
+            report_date: today,
+            total_earnings: Number(ed.earnings) || 0,
+            total_trips: (existingReport?.total_trips || 0) + (Number(ed.trips_count) || 0),
+            total_distance_km: Number(ed.distance_km || 0) || (existingReport?.total_distance_km ?? 0),
+            hours_worked: Number(ed.hours_worked || 0) || (existingReport?.hours_worked ?? 0),
+            ai_recommendation: result.notes || undefined,
+          };
+
+          if (existingReport) {
+            const { error: upErr } = await supabase.from('daily_reports').update(baseUpdate).eq('id', existingReport.id);
+            if (upErr) throw upErr;
+          } else {
+            const { error: insErr } = await supabase.from('daily_reports').insert(baseUpdate);
+            if (insErr) throw insErr;
+          }
+          toast.success('Rapport de profit/quotidien mis à jour');
+        }
+      } else {
+        toast.error('Type de route inconnu');
+      }
+    } catch (e: any) {
+      toast.error(e.message || "Erreur lors de l'application de la suggestion");
     } finally {
       setLoading(false);
     }
@@ -227,7 +321,7 @@ export function UniversalFileAnalyzer() {
           />
         )}
 
-        <Button onClick={handleAnalyze} className="w-full gap-2" disabled={loading || (!file && mode !== 'url') || (mode === 'url' && !urlInput) || !zoneId}>
+        <Button onClick={handleAnalyze} className="w-full gap-2" disabled={loading || (!file && mode !== 'url') || (mode === 'url' && !urlInput)}>
           {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
           {loading ? 'Analyse en cours…' : "Analyser avec l'IA"}
         </Button>
@@ -239,7 +333,7 @@ export function UniversalFileAnalyzer() {
         )}
 
         {(result || suggestedArea !== 'unknown') && (
-          <div className="p-2 bg-background border border-border rounded-md space-y-1 text-xs">
+          <div className="p-2 bg-background border border-border rounded-md space-y-2 text-xs">
             <p className="font-semibold">Direction IA proposée :</p>
             <p>Zone suggérée: {suggestedZoneId ? allZones.find(z => z.id === suggestedZoneId)?.name || suggestedZoneId : 'Non détectée'}</p>
             <p>Usage recommandé: {suggestedArea === 'unknown' ? 'Auto' : suggestedArea}</p>
@@ -250,6 +344,9 @@ export function UniversalFileAnalyzer() {
               {suggestedArea === 'profit' && '→ Utilisez dans la rentabilité net / calc profit.'}
               {suggestedArea === 'demand' && '→ Utilisez pour recalcul de demande / scores zone.'}
             </p>
+            <Button onClick={handleApplySuggestion} size="sm" className="w-full" disabled={loading || !result}>
+              {loading ? 'Traitement...' : 'Appliquer la suggestion IA'}
+            </Button>
           </div>
         )}
 

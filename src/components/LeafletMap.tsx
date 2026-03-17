@@ -15,6 +15,7 @@ interface LeafletMapProps {
   center: [number, number];
   zoom?: number;
   markers: ZoneMarker[];
+  driverPosition?: { lat: number; lng: number };
   className?: string;
 }
 
@@ -24,9 +25,10 @@ function getMarkerColor(score: number): string {
   return '#ef4444';
 }
 
-export function LeafletMap({ center, zoom = 12, markers, className = '' }: LeafletMapProps) {
+export function LeafletMap({ center, zoom = 12, markers, driverPosition, className = '' }: LeafletMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
+  const driverMarkerRef = useRef<L.Marker | null>(null);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -79,7 +81,8 @@ export function LeafletMap({ center, zoom = 12, markers, className = '' }: Leafl
         radius: 10,
         fillColor: color,
         color: '#fff',
-        weight: 2,
+        weight: m.type?.toLowerCase().includes('delivery') ? 3 : 2,
+        dashArray: m.type?.toLowerCase().includes('delivery') ? '4' : undefined,
         opacity: 1,
         fillOpacity: 0.85,
       })
@@ -92,6 +95,23 @@ export function LeafletMap({ center, zoom = 12, markers, className = '' }: Leafl
           </div>`
         );
     });
+
+    if (driverPosition) {
+      if (!driverMarkerRef.current) {
+        driverMarkerRef.current = L.marker([driverPosition.lat, driverPosition.lng], {
+          icon: L.divIcon({
+            className: 'driver-dot-marker',
+            html: '<div style="width:16px;height:16px;border-radius:50%;background:#ec4899;border:2px solid white;box-shadow:0 0 8px rgba(236,72,153,0.7);"></div>',
+            iconSize: [16, 16],
+          }),
+        }).addTo(mapRef.current!);
+      } else {
+        driverMarkerRef.current.setLatLng([driverPosition.lat, driverPosition.lng]);
+      }
+    } else if (driverMarkerRef.current) {
+      driverMarkerRef.current.remove();
+      driverMarkerRef.current = null;
+    }
   }, [markers]);
 
   return <div ref={containerRef} className={`w-full h-full ${className}`} />;

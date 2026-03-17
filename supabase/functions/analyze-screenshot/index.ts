@@ -13,9 +13,35 @@ serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
-    const { image_url, file_content, file_name, zone_id, zone_name } = await req.json();
-    if (!zone_id) throw new Error("zone_id is required");
+    const { image_url, file_content, file_name, zone_id: requestedZoneId, zone_name } = await req.json();
     if (!image_url && !file_content) throw new Error("image_url or file_content is required");
+
+    let zone_id = requestedZoneId;
+    if (!zone_id) {
+      if (zone_name) {
+        const { data: matchedZone } = await supabase
+          .from('zones')
+          .select('id')
+          .ilike('name', `%${zone_name}%`)
+          .limit(1)
+          .single();
+        if (matchedZone?.id) zone_id = matchedZone.id;
+      }
+    }
+
+    if (!zone_id) {
+      const { data: firstZone } = await supabase
+        .from('zones')
+        .select('id')
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .single();
+      if (firstZone?.id) zone_id = firstZone.id;
+    }
+
+    if (!zone_id) {
+      throw new Error('Aucune zone disponible pour l analyse');
+    }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -39,7 +65,7 @@ serve(async (req) => {
 5. Trip details if visible
 6. Time of day if shown
 
-Return JSON: {"zones_detected":[{"area":"name","demand":"low|medium|high|very_high","surge_multiplier":number|null,"color_intensity":"description"}],"overall_demand":"low|medium|high|very_high","time_context":"description","notes":"any additional observations in French","extracted_data":{"earnings":number|null,"trips_count":number|null,"distance_km":number|null}}`
+Return JSON: {"zones_detected":[{"area":"name","demand":"low|medium|high|very_high","surge_multiplier":number|null,"color_intensity":"description"}],"overall_demand":"low|medium|high|very_high","time_context":"description","notes":"any additional observations en français","recommended_target":"demand|shift|daily|mileage|profit","extracted_data":{"earnings":number|null,"trips_count":number|null,"distance_km":number|null}}`
           },
           { type: "image_url", image_url: { url: image_url } }
         ]
@@ -48,7 +74,7 @@ Return JSON: {"zones_detected":[{"area":"name","demand":"low|medium|high|very_hi
 File content:
 ${file_content.slice(0, 30000)}
 
-Return JSON: {"zones_detected":[{"area":"name","demand":"low|medium|high|very_high","surge_multiplier":null,"color_intensity":"from data"}],"overall_demand":"low|medium|high|very_high","time_context":"description","notes":"observations in French","extracted_data":{"earnings":number|null,"trips_count":number|null,"distance_km":number|null,"tips":number|null}}`;
+Return JSON:{"zones_detected":[{"area":"name","demand":"low|medium|high|very_high","surge_multiplier":null,"color_intensity":"from data"}],"overall_demand":"low|medium|high|very_high","time_context":"description","notes":"observations en français","recommended_target":"demand|shift|daily|mileage|profit","extracted_data":{"earnings":number|null,"trips_count":number|null,"distance_km":number|null,"tips":number|null}}`;
 
     const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -95,6 +121,11 @@ Return JSON: {"zones_detected":[{"area":"name","demand":"low|medium|high|very_hi
     } catch {
       console.error("Failed to parse AI response:", jsonStr.slice(0, 500));
       analysis = { zones_detected: [], overall_demand: "unknown", notes: jsonStr.slice(0, 300) };
+    }
+
+    const validTargets = ["demand", "shift", "daily", "mileage", "profit"];
+    if (!analysis.recommended_target || !validTargets.includes(analysis.recommended_target)) {
+      analysis.recommended_target = "demand";
     }
 
     // Build a readable note from the analysis

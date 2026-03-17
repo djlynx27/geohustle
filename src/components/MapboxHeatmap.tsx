@@ -116,13 +116,46 @@ export function MapboxHeatmap({ center, zoom = 11, markers, onZoneClick, classNa
         <div className="p-3 text-xs text-muted-foreground bg-muted border border-border rounded-lg text-center">
           Mapbox API key not configured (VITE_MAPBOX_TOKEN). Utilisation de Leaflet en secours.
         </div>
-        <LeafletMap center={center} zoom={zoom} markers={markers.map(m => ({ id: m.id, name: m.name, type: m.type, latitude: m.latitude, longitude: m.longitude, demandScore: m.demandScore }))} className="mt-2 h-[calc(100%-2.125rem)]" />
+        <LeafletMap
+          center={center}
+          zoom={zoom}
+          markers={markers.map(m => ({ id: m.id, name: m.name, type: m.type, latitude: m.latitude, longitude: m.longitude, demandScore: m.demandScore }))}
+          driverPosition={driverPos}
+          className="mt-2 h-[calc(100%-2.125rem)]"
+        />
       </div>
     );
   }
 
+  const goToMyLocation = () => {
+    if (!driverPos) return;
+    mapRef.current?.flyTo({ center: [driverPos.lng, driverPos.lat], zoom: 15, duration: 600 });
+  };
+
+  const getTypeStyle = (type: string) => {
+    if (type.toLowerCase().includes('delivery')) return { borderColor: '#facc15', backgroundColor: 'rgba(250, 204, 21, 0.85)' };
+    if (type.toLowerCase().includes('commercial') || type.toLowerCase().includes('passenger')) return { borderColor: '#22c55e', backgroundColor: 'rgba(34, 197, 94, 0.85)' };
+    return { borderColor: '#60a5fa', backgroundColor: 'rgba(96, 165, 250, 0.85)' };
+  };
+
   return (
-    <div className={`w-full h-full ${className}`}>
+    <div className={`relative w-full h-full ${className}`}>
+      <div className="absolute z-20 left-3 top-3 flex flex-col gap-2">
+        <button
+          onClick={goToMyLocation}
+          disabled={!driverPos}
+          className="rounded-md border border-white/30 bg-white/10 px-2 py-1 text-xs text-white backdrop-blur transition hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          📍 Me localiser
+        </button>
+        <div className="rounded-md border border-white/20 bg-black/40 p-2 text-xs text-white">
+          <div className="font-semibold mb-1">Hotspots</div>
+          <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full" style={{ backgroundColor: '#22c55e' }} /> Passagers</div>
+          <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full" style={{ backgroundColor: '#facc15' }} /> Livraison</div>
+          <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full" style={{ backgroundColor: '#60a5fa' }} /> Autre</div>
+        </div>
+      </div>
+
       <MapErrorBoundary>
         {locationError && (
           <div className="absolute z-10 top-2 right-2 px-3 py-1 rounded-lg bg-red-600/90 text-white text-[11px]">
@@ -175,11 +208,11 @@ export function MapboxHeatmap({ center, zoom = 11, markers, onZoneClick, classNa
             <Marker key={m.id} longitude={m.longitude} latitude={m.latitude} anchor="center">
               <button
                 onClick={(e) => { e.stopPropagation(); onZoneClick?.(m); }}
-                className="rounded-full border-2 border-white/80 shadow-md transition-transform hover:scale-125 focus:outline-none"
+                className="rounded-full border-2 shadow-md transition-transform hover:scale-125 focus:outline-none"
                 style={{
                   width: 18,
                   height: 18,
-                  backgroundColor: getMarkerColor(score),
+                  ...getTypeStyle(m.type),
                 }}
                 aria-label={m.name}
               />
