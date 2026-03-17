@@ -52,6 +52,8 @@ export default function AdminScreen() {
     try { return JSON.parse(localStorage.getItem('agentStates') ?? '{}'); } catch { return {}; }
   });
   const [learningHistory, setLearningHistory] = useState<ZoneHistory[]>([]);
+  const [recentTrips, setRecentTrips] = useState<any[]>([]);
+  const [driftMetrics, setDriftMetrics] = useState({ meanError: 0, sample: 0 });
 
   const [foodQuery, setFoodQuery] = useState('');
   const [foodResults, setFoodResults] = useState<OpenFoodProduct[]>([]);
@@ -59,7 +61,7 @@ export default function AdminScreen() {
   const [placeResults, setPlaceResults] = useState<FoursquarePlace[]>([]);
   const [placeLocation, setPlaceLocation] = useState<{ lat: number; lng: number } | null>(null);
 
-  // Fetch last AI analysis date
+  // Fetch last AI analysis date + recent trips for drift / learning state
   useEffect(() => {
     supabase
       .from('score_history')
@@ -71,12 +73,29 @@ export default function AdminScreen() {
         if (data?.[0]) setLastAnalyzed(data[0].created_at);
       });
 
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition((pos) => {
-        setPlaceLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+    supabase
+      .from('trips')
+      .select('*, zones(name, type, current_score)')
+      .order('started_at', { ascending: false })
+      .limit(100)
+      .then(({ data }) => {
+        if (data) {
+          setRecentTrips(data);
+        }
       });
+
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          setPlaceLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        },
+        (err) => {
+          console.warn('Geolocation permission denied:', err.message);
+          toast.error(t('locationPermissionTip'));
+        }
+      );
     }
-  }, []);
+  }, [t]);
 
   async function handleAddCity() {
     if (!newCity.trim()) return;
@@ -177,16 +196,33 @@ export default function AdminScreen() {
   const progressPct = simProgress ? Math.round((simProgress.current / Math.max(simProgress.total, 1)) * 100) : 0;
 
   useEffect(() => {
-    if (zones.length > 0) {
-      const hb: ZoneHistory[] = zones.slice(0, 20).map((z) => ({
-        zoneId: z.id,
-        observedScore: Math.min(100, Math.max(20, Math.round((z.current_score || 50) + (Math.random() * 20 - 10)))),
-        expectedScore: z.current_score || 50,
-        timestamp: new Date().toISOString(),
-      }));
-      setLearningHistory(hb);
+    if (!recentTrips || recentTrips.length === 0) return;
+
+    const history: ZoneHistory[] = recentTrips
+      .map((trip) => {
+        const zone = trip.zones || zones.find(z => z.id === trip.zone_id);
+        if (!zone) return null;
+        const expected = Number(zone.current_score || 50);
+        const observed = Math.min(100, Math.max(0, Math.round((Number(trip.earnings || 0) + Number(trip.tips || 0)) / 0.75)));
+        return {
+          zoneId: zone.id,
+          expectedScore: expected,
+          observedScore: observed,
+          timestamp: trip.started_at,
+        };
+      })
+      .filter((item): item is ZoneHistory => item !== null);
+
+    setLearningHistory(history);
+
+    if (history.length > 0) {
+      const errors = history.map((x) => Math.abs(x.observedScore - x.expectedScore));
+      const meanError = errors.reduce((sum, v) => sum + v, 0) / errors.length;
+      setDriftMetrics({ meanError: Number(meanError.toFixed(1)), sample: history.length });
+    } else {
+      setDriftMetrics({ meanError: 0, sample: 0 });
     }
-  }, [zones]);
+  }, [recentTrips, zones]);
 
   function handleRetrainAgents() {
     const nextStates: Record<string, LearningAgentState> = {};
@@ -368,6 +404,10 @@ export default function AdminScreen() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
+            <div className="text-xs text-muted-foreground">
+              <p>{t('agentLearned')} : {driftMetrics.sample} ({t('agentStatus')}: {driftMetrics.meanError}%)</p>
+              <p>{t('agentStatus')}: {driftMetrics.meanError <= 10 ? 'OK' : 'Drift élevé'}</p>
+            </div>
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
